@@ -1,0 +1,8 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: nginx-lua-scripts
+  namespace: webhook-gateway
+data:
+  validate_hmac.lua: |-
+    # paste validate_hmac.lua content here
