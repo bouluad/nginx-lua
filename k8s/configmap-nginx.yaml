@@ -1,0 +1,11 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: nginx-webhook-config
+  namespace: webhook-gateway
+data:
+  nginx.conf: |-
+    # paste nginx/nginx.conf here, with REPLACE placeholders adjusted
+  allowlist.conf: |
+    # initial deny-all until CronJob populates
+    deny all;
