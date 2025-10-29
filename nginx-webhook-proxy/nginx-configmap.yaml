@@ -1,0 +1,37 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: nginx-config
+data:
+  nginx.conf: |
+    events {}
+    
+    http {
+        log_format main '$remote_addr - $remote_user [$time_local] "$request" '
+                        '$status $body_bytes_sent "$http_referer" '
+                        '"$http_user_agent" "$http_x_forwarded_for"';
+    
+        access_log /var/log/nginx/access.log main;
+    
+        server {
+            listen 80;
+    
+            # Restrict IPs to GitHub public ranges
+            allow 140.82.112.0/20;
+            allow 185.199.108.0/22;
+            deny all;
+    
+            location /webhook/jenkins {
+                proxy_pass http://onprem-jenkins.internal:8080/github-webhook/;
+            }
+    
+            location /webhook/sonarqube {
+                proxy_pass http://onprem-sonarqube.internal:9000/api/webhooks/;
+            }
+    
+            location /webhook/artifactory {
+                proxy_pass http://onprem-artifactory.internal:8081/artifactory/api/webhook/;
+            }
+        }
+    }
+    
