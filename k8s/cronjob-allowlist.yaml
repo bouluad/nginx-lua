@@ -1,0 +1,43 @@
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: update-github-allowlist
+  namespace: webhook-gateway
+spec:
+  schedule: "0 */6 * * *" # every 6 hours
+  jobTemplate:
+    spec:
+      template:
+        spec:
+          serviceAccountName: allowlist-updater
+          containers:
+          - name: updater
+            image: bitnami/kubectl:1.27
+            env:
+              - name: GITHUB_TOKEN
+                valueFrom:
+                  secretKeyRef:
+                    name: webhook-secrets
+                    key: GITHUB_TOKEN
+            command:
+            - /bin/sh
+            - -c
+            - |
+              set -euo pipefail
+              echo "Fetching GitHub meta hooks..."
+              if [ -n "${GITHUB_TOKEN:-}" ]; then
+                meta=$(curl -s -H "Authorization: token ${GITHUB_TOKEN}" https://api.github.com/meta)
+              else
+                meta=$(curl -s https://api.github.com/meta)
+              fi
+              hooks=$(echo "$meta" | jq -r '.hooks[]')
+              tmp=$(mktemp)
+              echo "# allowlist generated $(date -u)" > $tmp
+              for cidr in $hooks; do
+                echo "allow $cidr;" >> $tmp
+              done
+              echo "deny all;" >> $tmp
+              kubectl create configmap nginx-allowlist --from-file=allowlist.conf=$tmp -n webhook-gateway -o yaml --dry-run=client | kubectl apply -f -
+              # trigger reload by patching deployment annotation
+              kubectl -n webhook-gateway patch deployment nginx-webhook-proxy -p "{\"spec\":{\"template\":{\"metadata\":{\"annotations\":{\"allowlist-reload\":\"$(date -u +%s)\"}}}}}"
+          restartPolicy: OnFailure
