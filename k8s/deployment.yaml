@@ -1,0 +1,66 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: nginx-webhook-proxy
+  namespace: webhook-gateway
+spec:
+  replicas: 3
+  selector:
+    matchLabels:
+      app: nginx-webhook-proxy
+  template:
+    metadata:
+      labels:
+        app: nginx-webhook-proxy
+    spec:
+      containers:
+      - name: openresty
+        image: openresty/openresty:alpine
+        ports:
+        - containerPort: 443
+        volumeMounts:
+        - name: nginx-conf
+          mountPath: /etc/nginx/nginx.conf
+          subPath: nginx.conf
+        - name: allowlist
+          mountPath: /etc/nginx/allowlist.conf
+          subPath: allowlist.conf
+        - name: lua-scripts
+          mountPath: /etc/nginx/lua
+        - name: tls-cert
+          mountPath: /etc/tls
+        env:
+        - name: SONAR_SECRET
+          valueFrom:
+            secretKeyRef:
+              name: webhook-secrets
+              key: SONAR_SECRET
+        - name: ARTIFACTORY_SECRET
+          valueFrom:
+            secretKeyRef:
+              name: webhook-secrets
+              key: ARTIFACTORY_SECRET
+        - name: JENKINS_SECRET
+          valueFrom:
+            secretKeyRef:
+              name: webhook-secrets
+              key: JENKINS_SECRET
+      volumes:
+        - name: nginx-conf
+          configMap:
+            name: nginx-webhook-config
+            items:
+              - key: nginx.conf
+                path: nginx.conf
+        - name: allowlist
+          configMap:
+            name: nginx-webhook-config
+            items:
+              - key: allowlist.conf
+                path: allowlist.conf
+        - name: lua-scripts
+          configMap:
+            name: nginx-lua-scripts
+        - name: tls-cert
+          secret:
+            secretName: webhook-tls
