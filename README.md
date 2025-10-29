@@ -23,3 +23,59 @@ This deploys an OpenResty (Nginx + Lua) webhook gateway in AKS to receive GitHub
    ```bash
    kubectl apply -f k8s/namespace.yaml
    kubectl apply -f k8s/secrets.yaml
+
+Deploy ConfigMaps, Deployment and Service:
+   ```bash
+   kubectl apply -f k8s/configmap-nginx.yaml
+   kubectl apply -f k8s/configmap-lua.yaml
+   kubectl apply -f k8s/deployment.yaml
+   kubectl apply -f k8s/service.yaml
+
+
+Create RBAC and CronJob:
+   ```bash
+   kubectl apply -f k8s/rbac.yaml
+   kubectl apply -f k8s/cronjob-allowlist.yaml
+
+
+Confirm:
+
+kubectl -n webhook-gateway get pods,svc
+
+
+In GitHub webhook settings (repo or organization):
+
+Payload URL: https://webhooks.example.com/sonarqube (or /jenkins, /artifactory)
+
+Content type: application/json
+
+Secret: same HMAC secret (ex: REPLACE_ME_SONAR_SECRET)
+
+Testing from a runner
+payload='{"project":"myproj","status":"OK"}'
+secret="REPLACE_ME_SONAR_SECRET"
+sig=$(printf '%s' "$payload" | openssl dgst -sha256 -hmac "$secret" -binary | xxd -ps -c 256)
+curl -v -X POST "https://webhooks.example.com/sonarqube" \
+  -H "Content-Type: application/json" \
+  -H "X-Hub-Signature-256: sha256=$sig" \
+  -d "$payload"
+
+Operational notes
+
+CronJob refreshes GitHub hooks CIDRs every 6 hours. Adjust as needed.
+
+Consider Azure Application Gateway (WAF) in front for additional filtering.
+
+Use cert-manager or Azure Key Vault (CSI) for TLS cert automation.
+
+Log X-GitHub-Delivery header for auditing and deduplication in backends.
+
+Rotate HMAC secrets periodically.
+
+Troubleshooting
+
+403 from gateway: check allowlist.conf + HMAC secret mapping.
+
+CronJob failing: verify ServiceAccount RBAC permissions.
+
+Backend not receiving: check VPN/ExpressRoute connectivity and DNS resolution from AKS.
